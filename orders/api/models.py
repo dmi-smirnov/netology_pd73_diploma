@@ -1,3 +1,5 @@
+import random
+import string
 from django.db import models
 from django.contrib.auth.models import BaseUserManager, AbstractBaseUser
 from rest_framework.fields import MinValueValidator
@@ -48,20 +50,21 @@ class User(AbstractBaseUser):
         max_length=255,
         unique=True,
     )
+    email_confirmed = models.BooleanField(default=False)
 
-    is_active = models.BooleanField(default=True)
+    is_active = models.BooleanField(default=False)
     is_admin = models.BooleanField(default=False)
 
     objects = UserManager()
 
     USERNAME_FIELD = "email"
 
-    first_name = models.CharField(max_length=30, verbose_name='имя', blank=True)
-    last_name = models.CharField(max_length=30, verbose_name='фамилия', blank=True)
-    patronymic = models.CharField(max_length=30, verbose_name='отчество', blank=True)
+    first_name = models.CharField(max_length=30, verbose_name='имя')
+    last_name = models.CharField(max_length=30, verbose_name='фамилия')
+    patronymic = models.CharField(max_length=30, verbose_name='отчество')
 
-    company = models.CharField(max_length=50, verbose_name='компания', blank=True)
-    position = models.CharField(max_length=50, verbose_name='должность', blank=True)
+    company = models.CharField(max_length=50, verbose_name='компания')
+    position = models.CharField(max_length=50, verbose_name='должность')
 
     def __str__(self):
         return self.email
@@ -81,6 +84,46 @@ class User(AbstractBaseUser):
         # All admins are staff
         return self.is_admin
     
+    @classmethod
+    def get_required_fields_names(cls) -> set[str]:
+        fields = cls._meta.get_fields()
+        required_fields = set()
+        for field in fields:
+            if getattr(field, 'blank', True):
+                continue
+            if field.has_default():
+                continue
+            field_name = getattr(field, 'attname', None)
+            if field_name:
+                required_fields.add(field_name)
+        return required_fields
+    
+
+class EmailVerificationCode(models.Model):
+    class Meta:
+        verbose_name = 'код подтверждения email'
+        verbose_name_plural = 'коды подтверждения email'
+
+    LENGTH = 10
+    LETTERS = string.digits
+
+    user = models.OneToOneField(
+        User,
+        on_delete=models.CASCADE,
+        primary_key=True,
+        related_name='email_verification_code'
+    )
+    value = models.CharField(max_length=LENGTH, verbose_name='значение')
+    created_at = models.DateTimeField(auto_now_add=True,
+                                      verbose_name='создан')
+    sent_at = models.DateTimeField(null=True,
+                                   verbose_name='отправлен')
+    
+    @classmethod
+    def generate(cls):
+        code = ''.join(random.choice(cls.LETTERS) for _ in range(cls.LENGTH))
+        return code
+
 
 class Order(models.Model):
     class Meta:
@@ -97,7 +140,8 @@ class Order(models.Model):
     )
 
     number = models.IntegerField(verbose_name='номер')
-    created_at = models.DateTimeField(auto_now_add=True, verbose_name='создан')
+    created_at = models.DateTimeField(auto_now_add=True,
+                                      verbose_name='создан')
     delivired_at = models.DateTimeField(verbose_name='доставлен', null=True)
     status = models.CharField(
         choices=STATUS_CHOICES,
