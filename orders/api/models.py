@@ -99,10 +99,10 @@ class User(AbstractBaseUser):
         return required_fields
     
 
-class EmailVerificationCode(models.Model):
+class ConfirmationCode(models.Model):
     class Meta:
-        verbose_name = 'код подтверждения email'
-        verbose_name_plural = 'коды подтверждения email'
+        verbose_name = 'код подтверждения'
+        verbose_name_plural = 'коды подтверждения'
 
     LENGTH = 10
     LETTERS = string.digits
@@ -111,7 +111,7 @@ class EmailVerificationCode(models.Model):
         User,
         on_delete=models.CASCADE,
         primary_key=True,
-        related_name='email_verification_code'
+        related_name='confirmation_code'
     )
     value = models.CharField(max_length=LENGTH, verbose_name='значение')
     created_at = models.DateTimeField(auto_now_add=True,

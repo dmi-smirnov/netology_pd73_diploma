@@ -1,18 +1,18 @@
 from django import forms
 from django.core.mail import EmailMessage
-from django.forms import Form
 from django.utils import timezone as django_timezone
 from rest_framework import status
 from rest_framework.exceptions import ValidationError
-from rest_framework.generics import CreateAPIView
+from rest_framework.generics import CreateAPIView, UpdateAPIView
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from api.serializers import UserSerializer
-from api.models import EmailVerificationCode, User
+from api.models import ConfirmationCode, User
 
 
-class UserView(CreateAPIView):
+class CreateUserView(CreateAPIView):
     queryset = User.objects.all()
     serializer_class = UserSerializer
     
@@ -21,31 +21,19 @@ class UserView(CreateAPIView):
         
         created_user = serializer.instance
 
-        # Creating email verification code for created user
-        created_user_evc = EmailVerificationCode(
+        send_confirmation_code_by_email(
             user=created_user,
-            value=EmailVerificationCode.generate()
+            email_subject='Код подтверждения email'
         )
-        created_user_evc.save()
-
-        # Sending email verification code
-        email_msg = EmailMessage(
-            subject=f'Код подтверждения email',
-            body=created_user_evc.value,
-            to=(created_user.email,)
-        )
-        if email_msg.send():
-            created_user_evc.sent_at = django_timezone.now()
-            created_user_evc.save()
 
         return result
 
 
-class EmailVerificationForm(Form):
+class EmailVerificationForm(forms.Form):
     email = forms.EmailField()
-    verification_code = forms.CharField(
-        min_length=EmailVerificationCode.LENGTH,
-        max_length=EmailVerificationCode.LENGTH
+    confirmation_code = forms.CharField(
+        min_length=ConfirmationCode.LENGTH,
+        max_length=ConfirmationCode.LENGTH
     )
 
 
@@ -53,6 +41,77 @@ class EmailVerification(APIView):
     def post(self, request):
         # Validating request data fields
         errors = EmailVerificationForm(request.data).errors
+        if errors:
+            raise ValidationError(errors)
+        
+        req_email = request.data['email']
+
+        # Getting user from DB by email
+        try:
+            user = User.objects.get(email=req_email)
+        except User.DoesNotExist:
+            resp_data = {
+                'email': ['User with this email was not found.']
+            }
+            return Response(resp_data, status.HTTP_404_NOT_FOUND)
+        
+        # Checking the need for verification
+        if user.email_confirmed:
+            errors = {
+                'email': ['This email is already verified.']
+            }
+            raise ValidationError(errors)
+
+        # Getting confirmation code from DB
+        try:
+            db_confirmation_code = ConfirmationCode.objects.get(user=user)
+        except ConfirmationCode.DoesNotExist:
+            errors = {
+                'error': ['Confirmation code for this user was not found.']
+            }
+            raise ValidationError(errors, status.HTTP_404_NOT_FOUND)
+        
+        # Confirmation code verification
+        req_confirmation_code = str(request.data['confirmation_code'])
+        if req_confirmation_code != db_confirmation_code.value:
+            errors = {
+                'confirmation_code': ['This code is invalid.']
+            }
+            raise ValidationError(errors)
+        user.email_confirmed = True
+        user.is_active = True
+        user.save()
+        db_confirmation_code.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class UpdateUserView(UpdateAPIView):
+    queryset = User.objects.all()
+    serializer_class = UserSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_object(self):
+        return self.request.user
+
+    
+class OnlyEmailForm(forms.Form):
+    email = forms.EmailField()
+
+
+class ForgotPasswordForm(forms.Form):
+    email = forms.EmailField()
+    confirmation_code = forms.CharField(
+        min_length=ConfirmationCode.LENGTH,
+        max_length=ConfirmationCode.LENGTH
+    )
+    password = forms.CharField()
+
+
+class ForgotPasswordConfirmationCodeView(APIView):
+    def post(self, request):
+        'Requesting password change confirmation code to email'
+        # Validating request data fields
+        errors = OnlyEmailForm(request.data).errors
         if errors:
             raise ValidationError(errors)
         
@@ -67,31 +126,95 @@ class EmailVerification(APIView):
             }
             return Response(resp_data, status.HTTP_404_NOT_FOUND)
         
-        # Checking the need for verification
-        if user.email_confirmed:
-            resp_data = {
-                'email': ['This email is already verified.']
-            }
-            return Response(resp_data, status.HTTP_400_BAD_REQUEST)
+        send_confirmation_code_by_email(
+            user=user,
+            email_subject='Код подтверждения смены пароля'
+        )
 
-        # Getting email verification code from DB
-        try:
-            user_evc = EmailVerificationCode.objects.get(user=user)
-        except EmailVerificationCode.DoesNotExist:
-            resp_data = {
-                'email': ['Verification code for this email was not found.']
-            }
-            return Response(resp_data, status.HTTP_404_NOT_FOUND)
+        resp_data = {
+            'result': f'Password change confirmation code sent to {req_email}.'
+        }
+        return Response(resp_data)
+
+
+class ForgotPasswordView(APIView):
+    def patch(self, request):
+        'Password change with using confirmation code'
+        # Validating request data fields
+        errors = ForgotPasswordForm(request.data).errors
+        if errors:
+            raise ValidationError(errors)
         
-        # Verification
-        req_evc = str(request.data['verification_code'])
-        if req_evc != user_evc.value:
-            resp_data = {
-                'verification_code': ['This code is invalid.']
+        req_data = request.data
+        req_email = req_data['email']
+
+        # Getting user from DB by email
+        try:
+            user = User.objects.get(email=req_email)
+        except User.DoesNotExist:
+            errors = {
+                'email': ['User with this email was not found.']
             }
-            return Response(resp_data, status.HTTP_400_BAD_REQUEST)
-        user.email_confirmed = True
-        user.is_active = True
-        user.save()
-        user_evc.delete()
-        return Response()
+            raise ValidationError(errors, status.HTTP_404_NOT_FOUND)
+        
+        # Getting confirmation code from DB
+        try:
+            db_confirmation_code =\
+                ConfirmationCode.objects.get(user=user)
+        except ConfirmationCode.DoesNotExist:
+            errors = {
+                'error': ['Confirmation code for this user was not found.']
+            }
+            raise ValidationError(errors, status.HTTP_404_NOT_FOUND)
+        
+        # Confirmation code verification
+        req_confirmation_code = str(req_data['confirmation_code'])
+        if req_confirmation_code != db_confirmation_code.value:
+            errors = {
+                'confirmation_code': ['This code is invalid.']
+            }
+            raise ValidationError(errors)
+
+        # Password change
+        serializer_data = {
+            'password': req_data['password']
+        }
+        user_serializer =\
+            UserSerializer(user, data=serializer_data, partial=True)
+        user_serializer.is_valid(raise_exception=True)
+        user_serializer.save()
+
+        db_confirmation_code.delete()
+
+        resp_data = {
+            'result': ['Password changed.']
+        }
+        return Response(resp_data)
+        
+
+
+def create_confirmation_code(user) -> ConfirmationCode:
+    try:
+        user.confirmation_code.delete()
+    except User.confirmation_code.RelatedObjectDoesNotExist:
+        pass
+    
+    confirmation_code = ConfirmationCode(
+        user=user,
+        value=ConfirmationCode.generate()
+    )
+    confirmation_code.save()
+
+    return confirmation_code
+
+def send_confirmation_code_by_email(user, email_subject: str):
+    confirmation_code = create_confirmation_code(user)
+    
+    email_msg = EmailMessage(
+        subject=email_subject,
+        body=confirmation_code.value,
+        to=(user.email,)
+    )
+    if email_msg.send():
+        confirmation_code.sent_at = django_timezone.now()
+        confirmation_code.save()
