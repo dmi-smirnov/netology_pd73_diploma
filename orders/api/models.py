@@ -34,6 +34,7 @@ class UserManager(BaseUserManager):
             password=password
         )
 
+        user.is_active = True
         user.is_admin = True
 
         user.save(using=self._db)
@@ -203,23 +204,11 @@ class Category(models.Model):
         verbose_name = 'категория товара'
         verbose_name_plural = 'категории товара'
 
-    name = models.CharField(max_length=40, verbose_name='название')
-
-
-class Product(models.Model):
-    class Meta:
-        verbose_name = 'товар'
-        verbose_name_plural = 'товары'
-
-    name = models.CharField(max_length=40, verbose_name='название')
-    description = models.CharField(max_length=40, verbose_name='описание')
-    model = models.CharField(max_length=40, verbose_name='модель')
-    category = models.ForeignKey(
-        Category,
-        on_delete=models.CASCADE,
-        related_name='products',
-        verbose_name='категория'
-    )
+    name = models.CharField(max_length=40, verbose_name='название',
+                            unique=True)
+    
+    def __str__(self):
+        return f'{self.name} (id={self.pk})'
 
 
 class Shop(models.Model):
@@ -232,8 +221,40 @@ class Shop(models.Model):
     representatives = models.ManyToManyField(
         User,
         related_name='shops',
-        verbose_name='представители'
+        verbose_name='представители',
+        blank=True
     )
+
+    def __str__(self):
+        return f'{self.name} (id={self.pk})'
+
+
+class Product(models.Model):
+    class Meta:
+        verbose_name = 'товар'
+        verbose_name_plural = 'товары'
+
+    name = models.CharField(max_length=80, verbose_name='название')
+    description = models.CharField(max_length=40, verbose_name='описание',
+                                   null=True)
+    model = models.CharField(max_length=40, verbose_name='модель',
+                             null=True)
+    category = models.ForeignKey(
+        Category,
+        on_delete=models.CASCADE,
+        related_name='products',
+        verbose_name='категория'
+    )
+    shops = models.ManyToManyField(
+        Shop,
+        through='ShopPosition',
+        related_name='products',
+        verbose_name='магазины',
+        blank=True
+    )
+
+    def __str__(self):
+        return f'{self.name} (id={self.pk})'
 
 
 class ProductParameter(models.Model):
@@ -267,7 +288,7 @@ class ShopPosition(models.Model):
         verbose_name_plural = 'позиции в магазине'
         constraints = [
             models.UniqueConstraint(
-                fields=['shop', 'product'],
+                fields=['shop', 'product', 'external_id', 'archived_at'],
                 name='unique_shop_product'
             )
         ]
@@ -281,8 +302,10 @@ class ShopPosition(models.Model):
     product = models.ForeignKey(
         Product,
         on_delete=models.CASCADE,
+        related_name='shops_positions',
         verbose_name='товар'
     )
+    external_id = models.PositiveIntegerField(verbose_name='внешний ID')
     price = models.DecimalField(
         max_digits=18,
         decimal_places=2,
@@ -293,9 +316,11 @@ class ShopPosition(models.Model):
         max_digits=18,
         decimal_places=2,
         validators=[MinValueValidator(0)],
-        verbose_name='рекомендуемая розничная цена'
+        verbose_name='рекомендуемая розничная цена',
+        null=True
     )
     quantity = models.PositiveIntegerField(verbose_name='количество')
+    archived_at = models.DateTimeField(verbose_name='архивирован', null=True)
 
 
 class CartPosition(models.Model):
@@ -318,6 +343,7 @@ class CartPosition(models.Model):
     shop_position = models.ForeignKey(
         ShopPosition,
         on_delete=models.CASCADE,
+        related_name='carts_positions',
         verbose_name='позиция в магазине'
     )
     quantity = models.PositiveIntegerField(verbose_name='количество')
@@ -343,6 +369,11 @@ class OrderPosition(models.Model):
     shop_position = models.ForeignKey(
         ShopPosition,
         on_delete=models.CASCADE,
+        related_name='orders_positions',
         verbose_name='позиция в магазине'
     )
     quantity = models.PositiveIntegerField(verbose_name='количество')
+
+
+def get_model_concrete_fields_names(M) -> list:
+    return [f.name for f in M._meta.concrete_fields]

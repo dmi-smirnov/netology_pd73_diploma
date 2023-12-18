@@ -5,7 +5,8 @@ from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.contrib.auth.forms import ReadOnlyPasswordHashField
 from django.core.exceptions import ValidationError
 
-from api.models import User
+from api.models import (Category, Order, Product, Shop, ShopPosition, User,
+                        get_model_concrete_fields_names)
 
 
 class UserCreationForm(forms.ModelForm):
@@ -51,6 +52,7 @@ class UserChangeForm(forms.ModelForm):
         fields = ['email', 'password', 'is_active', 'is_admin']
 
 
+@admin.register(User)
 class UserAdmin(BaseUserAdmin):
     # The forms to add and change user instances
     form = UserChangeForm
@@ -65,13 +67,15 @@ class UserAdmin(BaseUserAdmin):
         (None, {'fields': [
                     'email',
                     'password',
+                    'is_active',
+                    'email_confirmed',
                     'first_name',
                     'last_name',
                     'patronymic',
                     'company',
-                    'position',
-                    ]
-                }
+                    'position'
+                ]
+            }
         ),
         ('Permissions', {'fields': ['is_admin']}),
     ]
@@ -90,9 +94,30 @@ class UserAdmin(BaseUserAdmin):
     ordering = ['email']
     filter_horizontal = []
 
-
-# Now register the new UserAdmin...
-admin.site.register(User, UserAdmin)
-# ... and, since we're not using Django's built-in permissions,
-# unregister the Group model from admin.
 admin.site.unregister(Group)
+
+
+@admin.register(Shop)
+class ShopAdmin(admin.ModelAdmin):
+    list_display = get_model_concrete_fields_names(Shop)
+
+
+@admin.register(Category)
+class CategoryAdmin(admin.ModelAdmin):
+    list_display = get_model_concrete_fields_names(Category)
+
+
+@admin.register(Product)
+class ProductAdmin(admin.ModelAdmin):
+    list_display = get_model_concrete_fields_names(Product)
+
+
+@admin.register(ShopPosition)
+class ShopPositionAdmin(admin.ModelAdmin):
+    list_display = get_model_concrete_fields_names(ShopPosition)
+    list_filter = ['shop']
+
+
+@admin.register(Order)
+class OrderAdmin(admin.ModelAdmin):
+    list_display = get_model_concrete_fields_names(Order)

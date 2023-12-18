@@ -1,7 +1,8 @@
 from rest_framework import serializers
 import django.contrib.auth.password_validation
 
-from api.models import User
+from api.models import (Category, ParameterName, Product, ProductParameter,
+                        Shop, ShopPosition, User)
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -30,3 +31,48 @@ class UserSerializer(serializers.ModelSerializer):
             instance.set_password(raw_pwd)
         
         return super().update(instance, validated_data)
+
+
+class ParameterNameSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ParameterName
+        exclude = ['id']
+
+
+class ProductParameterSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ProductParameter
+        exclude = ['id', 'product']
+
+    parameter_name = ParameterNameSerializer()
+
+
+class CategorySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Category
+        exclude = ['id']
+
+
+class ShopSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Shop
+        exclude = ['representatives']
+
+
+class ShopPositionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ShopPosition
+        exclude = ['archived_at']
+
+    shop = ShopSerializer()
+
+
+class ProductSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Product
+        fields = '__all__'
+
+    category = CategorySerializer()
+    parameters = ProductParameterSerializer(many=True)
+    shops_positions = ShopPositionSerializer(many=True)
+    shops = ShopSerializer(many=True)
