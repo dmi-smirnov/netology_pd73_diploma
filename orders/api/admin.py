@@ -5,7 +5,8 @@ from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.contrib.auth.forms import ReadOnlyPasswordHashField
 from django.core.exceptions import ValidationError
 
-from api.models import (Category, Order, Product, Shop, ShopPosition, User,
+from api.models import (CartPosition, Category, Order, Product, Shop,
+                        ShopPosition, User,
                         get_model_concrete_fields_names)
 
 
@@ -121,3 +122,8 @@ class ShopPositionAdmin(admin.ModelAdmin):
 @admin.register(Order)
 class OrderAdmin(admin.ModelAdmin):
     list_display = get_model_concrete_fields_names(Order)
+
+
+@admin.register(CartPosition)
+class CartPositionAdmin(admin.ModelAdmin):
+    list_display = get_model_concrete_fields_names(CartPosition)

@@ -320,7 +320,11 @@ class ShopPosition(models.Model):
         null=True
     )
     quantity = models.PositiveIntegerField(verbose_name='количество')
-    archived_at = models.DateTimeField(verbose_name='архивирован', null=True)
+    archived_at = models.DateTimeField(verbose_name='архивирован', null=True,
+                                       blank=True)
+
+    def __str__(self):
+        return f'{self.product.name}, {self.shop.name} (id={self.pk})'
 
 
 class CartPosition(models.Model):
@@ -338,7 +342,8 @@ class CartPosition(models.Model):
         User,
         on_delete=models.CASCADE,
         related_name='cart_positions',
-        verbose_name='пользователь'
+        verbose_name='пользователь',
+        blank=True
     )
     shop_position = models.ForeignKey(
         ShopPosition,

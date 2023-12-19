@@ -13,10 +13,12 @@ from jsonschema import validate as schema_validate
 from jsonschema.exceptions import ValidationError as SchemaValidationError
 
 
-from api.serializers import (ParameterNameSerializer, ProductSerializer,
-                             UserSerializer)
-from api.models import (Category, ConfirmationCode, Product, ProductParameter,
-                        Shop, ShopPosition, User)
+from api.serializers import (CartPositionSerializerForCreate,
+                             CartPositionSerializerForList,
+                             ParameterNameSerializer, ProductSerializer,
+                             ShopSerializer, UserSerializer)
+from api.models import (CartPosition, Category, ConfirmationCode, Product,
+                        ProductParameter, Shop, ShopPosition, User)
 
 
 class CreateUserView(CreateAPIView):
@@ -415,7 +417,7 @@ class UpdateShopView(APIView):
 
             # Creating shop positon
             try:
-                shop_position = ShopPosition.objects.create(
+                ShopPosition.objects.create(
                     shop=shop,
                     product=db_product,
                     external_id=file_product['id'],
@@ -435,6 +437,102 @@ class UpdateShopView(APIView):
             'status': 'Data import was successful.'
         }
         return Response(resp_data, status.HTTP_201_CREATED)
+
+
+class UserCartViewSet(viewsets.mixins.CreateModelMixin,
+                      viewsets.mixins.UpdateModelMixin,
+                      viewsets.mixins.DestroyModelMixin,
+                      viewsets.mixins.ListModelMixin,
+                      viewsets.GenericViewSet):
+    queryset = CartPosition.objects.all()
+    serializer_class = CartPositionSerializerForCreate
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        # Filtering queryset by request user
+        return super().get_queryset().filter(user=self.request.user)
+
+    def perform_create(self, serializer):
+        # Setting user
+        serializer.validated_data['user'] = self.request.user
+        
+        # Checking quantity
+        self.check_cart_position_quantity(serializer)
+
+        return super().perform_create(serializer)
+
+    def perform_update(self, serializer):
+        # Checking quantity
+        if 'quantity' in serializer.validated_data:
+            self.check_cart_position_quantity(serializer)
+
+        return super().perform_update(serializer)
+
+    def check_cart_position_quantity(self, serializer):
+        db_shop_pos = (serializer.instance or
+                       serializer.validated_data.get('shop_position'))
+        shop_pos_qnt = db_shop_pos.quantity
+        cart_pos_qnt = serializer.validated_data['quantity']
+        if cart_pos_qnt > shop_pos_qnt:
+            errors = {
+                'quantity': [
+                    f'The value received is {cart_pos_qnt}, but quantity'
+                    f' of this shop position is only {shop_pos_qnt}'
+                ]
+            }
+            raise ValidationError(errors)
+
+    def list(self, request, *args, **kwargs):
+        # Changing default serializer
+        default_serializer = self.serializer_class
+        self.serializer_class = CartPositionSerializerForList
+        default_response = super().list(request, *args, **kwargs)
+        self.serializer_class = default_serializer
+
+        # Adding additional data to response data:
+        cart_positions = default_response.data
+        cart_total_quantity: int = 0
+        cart_total_sum: float = 0
+        for cart_pos in cart_positions:
+            cart_pos_quantity = cart_pos['quantity']
+            shop_position = cart_pos['shop_position']
+            shop_position_price = float(shop_position['price'])
+            
+            # Adding cart position sum
+            cart_pos['sum'] =\
+                shop_position_price * cart_pos_quantity
+            
+            # Adding product shops list with
+            # shop position info (id, price, quantity)
+            product_id = shop_position['product']['id']
+            db_product_shops_positions = ShopPosition.objects\
+                .filter(product=product_id)\
+                .filter(archived_at=None)\
+                .exclude(quantity=0)\
+                .exclude(shop__open=False)
+            product_shops_data = []
+            for db_shop_pos in db_product_shops_positions:
+                product_shop_data = ShopSerializer(db_shop_pos.shop).data
+                product_shop_data['position'] = {
+                    'id': db_shop_pos.pk,
+                    'price': str(db_shop_pos.price),
+                    'quantity': db_shop_pos.quantity
+                }
+                product_shops_data.append(product_shop_data)
+            cart_pos['product_shops'] = product_shops_data
+
+            cart_total_quantity += cart_pos_quantity
+
+            cart_total_sum += shop_position_price
+        custom_data = {
+            'cart_positions': cart_positions,
+            # Adding cart total quantity
+            'total_quantity': cart_total_quantity,
+            # Adding cart total sum
+            'total_sum': str(cart_total_sum)
+        }
+
+        return Response(custom_data)
 
 
 def create_confirmation_code(user) -> ConfirmationCode:

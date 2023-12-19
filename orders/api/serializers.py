@@ -1,8 +1,9 @@
+from django.db import IntegrityError
 from rest_framework import serializers
 import django.contrib.auth.password_validation
 
-from api.models import (Category, ParameterName, Product, ProductParameter,
-                        Shop, ShopPosition, User)
+from api.models import (CartPosition, Category, ParameterName, Product,
+                        ProductParameter, Shop, ShopPosition, User)
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -59,10 +60,10 @@ class ShopSerializer(serializers.ModelSerializer):
         exclude = ['representatives']
 
 
-class ShopPositionSerializer(serializers.ModelSerializer):
+class ShopPositionSerializerWithoutProduct(serializers.ModelSerializer):
     class Meta:
         model = ShopPosition
-        exclude = ['archived_at']
+        exclude = ['archived_at', 'product']
 
     shop = ShopSerializer()
 
@@ -74,5 +75,52 @@ class ProductSerializer(serializers.ModelSerializer):
 
     category = CategorySerializer()
     parameters = ProductParameterSerializer(many=True)
-    shops_positions = ShopPositionSerializer(many=True)
+    shops_positions = ShopPositionSerializerWithoutProduct(many=True)
     shops = ShopSerializer(many=True)
+
+
+class ProductSerializerForCartPosition(serializers.ModelSerializer):
+    class Meta:
+        model = Product
+        exclude = ['shops']
+
+    category = CategorySerializer()
+    parameters = ProductParameterSerializer(many=True)
+
+
+class ShopPositionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ShopPosition
+        exclude = ['archived_at']
+
+    shop = ShopSerializer()
+    product = ProductSerializer()
+
+
+class ShopPositionSerializerForCartPosition(serializers.ModelSerializer):
+    class Meta:
+        model = ShopPosition
+        exclude = ['archived_at']
+
+    shop = ShopSerializer()
+    product = ProductSerializerForCartPosition()
+
+
+class CartPositionSerializerForList(serializers.ModelSerializer):
+    class Meta:
+        model = CartPosition
+        exclude = ['user']
+
+    shop_position = ShopPositionSerializerForCartPosition()
+
+
+class CartPositionSerializerForCreate(serializers.ModelSerializer):
+    class Meta:
+        model = CartPosition
+        exclude = ['user']
+
+    def save(self, **kwargs):
+        try:
+            return super().save(**kwargs)
+        except IntegrityError as e:
+            raise serializers.ValidationError(str(e))
