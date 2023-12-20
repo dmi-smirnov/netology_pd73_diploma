@@ -63,7 +63,7 @@ class ShopSerializer(serializers.ModelSerializer):
 class ShopPositionSerializerWithoutProduct(serializers.ModelSerializer):
     class Meta:
         model = ShopPosition
-        exclude = ['archived_at', 'product']
+        exclude = ['product']
 
     shop = ShopSerializer()
 
@@ -71,12 +71,11 @@ class ShopPositionSerializerWithoutProduct(serializers.ModelSerializer):
 class ProductSerializer(serializers.ModelSerializer):
     class Meta:
         model = Product
-        fields = '__all__'
+        exclude = ['shops']
 
     category = CategorySerializer()
     parameters = ProductParameterSerializer(many=True)
     shops_positions = ShopPositionSerializerWithoutProduct(many=True)
-    shops = ShopSerializer(many=True)
 
 
 class ProductSerializerForCartPosition(serializers.ModelSerializer):

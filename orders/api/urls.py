@@ -2,7 +2,7 @@ from django.urls import include, path
 from rest_framework.authtoken.views import obtain_auth_token
 from rest_framework.routers import DefaultRouter
 
-from api.views import (ProductsView, UpdateShopView, UpdateUserView,
+from api.views import (ProductsViewSet, UpdateShopView, UpdateUserView,
                        ForgotPasswordView, UserCartViewSet,
                        ForgotPasswordConfirmationCodeView,
                        CreateUserView, EmailVerification)
@@ -10,7 +10,7 @@ from api.views import (ProductsView, UpdateShopView, UpdateUserView,
 
 router = DefaultRouter()
 
-router.register('products', ProductsView)
+router.register('products', ProductsViewSet)
 router.register('cart', UserCartViewSet)
 
 urlpatterns = [

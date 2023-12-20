@@ -12,7 +12,6 @@ import yaml
 from jsonschema import validate as schema_validate
 from jsonschema.exceptions import ValidationError as SchemaValidationError
 
-
 from api.serializers import (CartPositionSerializerForCreate,
                              CartPositionSerializerForList,
                              ParameterNameSerializer, ProductSerializer,
@@ -204,15 +203,54 @@ class ForgotPasswordView(APIView):
         return Response(resp_data)
         
 
-class ProductsView(viewsets.ReadOnlyModelViewSet):
+class ProductsViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Product.objects\
         .exclude(shops_positions=None)\
-        .exclude(shops__open=False)\
-        .exclude(shops_positions__quantity=0)\
-        .filter(shops_positions__archived_at=None)
-        
+        .filter(shops__open=True,
+                shops_positions__quantity__gt=0,
+                shops_positions__archived_at=None)\
+        .distinct()
     serializer_class = ProductSerializer
     permission_classes = [IsAuthenticated]
+
+    def list(self, request, *args, **kwargs):
+        default_data = super().list(request, *args, **kwargs).data
+
+        # Filtering shop positions
+        custom_data =\
+            self.filter_product_shop_positions(default_data, many=True)
+
+        return Response(custom_data)
+    
+    def retrieve(self, request, *args, **kwargs):
+        default_data = super().retrieve(request, *args, **kwargs).data
+
+        # Filtering shop positions
+        custom_data = self.filter_product_shop_positions(default_data)
+
+        return Response(custom_data)
+
+    def filter_product_shop_positions(self, data: dict,
+                                      many: bool = False):
+        if not many:
+            product_data = data.copy()
+            shops_positions = product_data.pop('shops_positions')
+            product_data['shops_positions'] = []
+            for shop_pos_data in shops_positions:
+                if (
+                    shop_pos_data['quantity'] > 0 
+                    and not shop_pos_data['archived_at']
+                    and shop_pos_data['shop']['open']
+                ):
+                    product_data['shops_positions'].append(shop_pos_data)
+            return product_data
+        else:
+            products_data = []
+            for product_data in data.copy():
+                products_data.append(
+                    self.filter_product_shop_positions(product_data)
+                )
+            return products_data
 
 
 class UpdateShopView(APIView):
@@ -489,7 +527,7 @@ class UserCartViewSet(viewsets.mixins.CreateModelMixin,
         default_response = super().list(request, *args, **kwargs)
         self.serializer_class = default_serializer
 
-        # Adding additional data to response data:
+        # Adding additional data to response data
         cart_positions = default_response.data
         cart_total_quantity: int = 0
         cart_total_sum: float = 0
