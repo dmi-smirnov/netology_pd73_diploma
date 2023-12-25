@@ -5,13 +5,15 @@ from rest_framework.routers import DefaultRouter
 from api.views import (ProductsViewSet, UpdateShopView, UpdateUserView,
                        ForgotPasswordView, UserCartViewSet,
                        ForgotPasswordConfirmationCodeView,
-                       CreateUserView, EmailVerification)
+                       CreateUserView, EmailVerification,
+                       UserOrdersViewSet)
 
 
 router = DefaultRouter()
 
 router.register('products', ProductsViewSet)
 router.register('cart', UserCartViewSet)
+router.register('orders', UserOrdersViewSet)
 
 urlpatterns = [
     path('signup', CreateUserView.as_view()),

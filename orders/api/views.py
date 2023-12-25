@@ -12,12 +12,13 @@ import yaml
 from jsonschema import validate as schema_validate
 from jsonschema.exceptions import ValidationError as SchemaValidationError
 
-from api.serializers import (CartPositionSerializerForCreate,
-                             CartPositionSerializerForList,
+from api.serializers import (CartPositionSerializerForWrite,
+                             CartPositionSerializerForRead,
+                             OrderSerializer,
                              ParameterNameSerializer, ProductSerializer,
                              ShopSerializer, UserSerializer)
-from api.models import (CartPosition, Category, ConfirmationCode, Product,
-                        ProductParameter, Shop, ShopPosition, User)
+from api.models import (CartPosition, Category, ConfirmationCode, Order,
+                        Product, ProductParameter, Shop, ShopPosition, User)
 
 
 class CreateUserView(CreateAPIView):
@@ -483,47 +484,17 @@ class UserCartViewSet(viewsets.mixins.CreateModelMixin,
                       viewsets.mixins.ListModelMixin,
                       viewsets.GenericViewSet):
     queryset = CartPosition.objects.all()
-    serializer_class = CartPositionSerializerForCreate
+    serializer_class = CartPositionSerializerForWrite
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
         # Filtering queryset by request user
         return super().get_queryset().filter(user=self.request.user)
 
-    def perform_create(self, serializer):
-        # Setting user
-        serializer.validated_data['user'] = self.request.user
-        
-        # Checking quantity
-        self.check_cart_position_quantity(serializer)
-
-        return super().perform_create(serializer)
-
-    def perform_update(self, serializer):
-        # Checking quantity
-        if 'quantity' in serializer.validated_data:
-            self.check_cart_position_quantity(serializer)
-
-        return super().perform_update(serializer)
-
-    def check_cart_position_quantity(self, serializer):
-        db_shop_pos = (serializer.instance or
-                       serializer.validated_data.get('shop_position'))
-        shop_pos_qnt = db_shop_pos.quantity
-        cart_pos_qnt = serializer.validated_data['quantity']
-        if cart_pos_qnt > shop_pos_qnt:
-            errors = {
-                'quantity': [
-                    f'The value received is {cart_pos_qnt}, but quantity'
-                    f' of this shop position is only {shop_pos_qnt}'
-                ]
-            }
-            raise ValidationError(errors)
-
     def list(self, request, *args, **kwargs):
         # Changing default serializer
         default_serializer = self.serializer_class
-        self.serializer_class = CartPositionSerializerForList
+        self.serializer_class = CartPositionSerializerForRead
         default_response = super().list(request, *args, **kwargs)
         self.serializer_class = default_serializer
 
@@ -563,15 +534,55 @@ class UserCartViewSet(viewsets.mixins.CreateModelMixin,
 
             cart_total_sum += shop_position_price
         custom_data = {
-            'cart_positions': cart_positions,
-            # Adding cart total quantity
+            # Moving positions to subdict positions
+            'positions': cart_positions,
+            # Adding total quantity
             'total_quantity': cart_total_quantity,
-            # Adding cart total sum
+            # Adding total sum
             'total_sum': str(cart_total_sum)
         }
 
         return Response(custom_data)
 
+
+class UserOrdersViewSet(viewsets.mixins.CreateModelMixin,
+                        viewsets.mixins.RetrieveModelMixin,
+                        viewsets.mixins.ListModelMixin,
+                        viewsets.GenericViewSet):
+    queryset = Order.objects.all()
+    serializer_class = OrderSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        # Filtering queryset by request user
+        return super().get_queryset().filter(user=self.request.user)
+    
+    def create(self, request, *args, **kwargs):
+        response =  super().create(request, *args, **kwargs)
+
+        order_data = response.data
+        order_num = order_data['id']
+
+        # Sending email to customer
+        email_msg = EmailMessage(
+            subject=f'Создан заказ №{order_num}',
+            to=(request.user.email,)
+        )
+        email_msg.send()
+
+        # Sending email to admins
+        admins_emails_tuples =\
+            User.objects.filter(is_active=True, is_admin=True).values_list('email')
+        admins_emails = set(t[0] for t in admins_emails_tuples)
+        for admin_email in admins_emails:
+            email_msg = EmailMessage(
+                subject=f'Создан заказ №{order_num}',
+                to=(admin_email,)
+            )
+            email_msg.send()
+
+        return response
+    
 
 def create_confirmation_code(user) -> ConfirmationCode:
     try:

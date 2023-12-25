@@ -5,8 +5,8 @@ from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.contrib.auth.forms import ReadOnlyPasswordHashField
 from django.core.exceptions import ValidationError
 
-from api.models import (CartPosition, Category, Order, Product, Shop,
-                        ShopPosition, User,
+from api.models import (Address, CartPosition, Category, Order, OrderPosition, Product, Recipient,
+                        Shop, ShopPosition, User,
                         get_model_concrete_fields_names)
 
 
@@ -119,11 +119,32 @@ class ShopPositionAdmin(admin.ModelAdmin):
     list_filter = ['shop']
 
 
+@admin.register(CartPosition)
+class CartPositionAdmin(admin.ModelAdmin):
+    list_display = get_model_concrete_fields_names(CartPosition)
+
+
+@admin.register(Address)
+class AddressAdmin(admin.ModelAdmin):
+    list_display = get_model_concrete_fields_names(Address)
+
+
+class AddressInline(admin.StackedInline):
+    model = Address
+
+
+@admin.register(Recipient)
+class RecipientAdmin(admin.ModelAdmin):
+    list_display = get_model_concrete_fields_names(Recipient)
+    inlines = [AddressInline]
+
+
 @admin.register(Order)
 class OrderAdmin(admin.ModelAdmin):
     list_display = get_model_concrete_fields_names(Order)
 
 
-@admin.register(CartPosition)
-class CartPositionAdmin(admin.ModelAdmin):
-    list_display = get_model_concrete_fields_names(CartPosition)
+@admin.register(OrderPosition)
+class OrderPositionAdmin(admin.ModelAdmin):
+    list_display = get_model_concrete_fields_names(OrderPosition)
+    list_filter = ['order']

@@ -131,33 +131,41 @@ class Order(models.Model):
         verbose_name = 'заказ'
         verbose_name_plural = 'заказы'
 
-    STATUS_CHOICES = (
-        ('NEW', 'Новый'),
-        ('CONFIRMED', 'Подтверждён'),
-        ('ASSEMBLED', 'Собран'),
-        ('SENT', 'Отправлен'),
-        ('DELIVERED', 'Доставлен'),
-        ('CANCELED', 'Отменён')
-    )
+    class StatusChoices(models.TextChoices):
+        FORMATION = ('FORMATION', 'Формируется')
+        NEW = ('NEW', 'Новый')
+        CONFIRMED = ('CONFIRMED', 'Подтверждён')
+        ASSEMBLED = ('ASSEMBLED', 'Собран')
+        SENT = ('SENT', 'Отправлен')
+        DELIVERED = ('DELIVERED', 'Доставлен')
+        CANCELED = ('CANCELED', 'Отменён')
 
-    number = models.IntegerField(verbose_name='номер')
     created_at = models.DateTimeField(auto_now_add=True,
                                       verbose_name='создан')
     delivired_at = models.DateTimeField(verbose_name='доставлен', null=True)
     status = models.CharField(
-        choices=STATUS_CHOICES,
         max_length=20,
+        choices=StatusChoices.choices,
+        blank=True,
         verbose_name='статус'
     )
     user = models.ForeignKey(
         User,
         on_delete=models.CASCADE,
+        blank=True,
         related_name='orders',
         verbose_name='пользователь'
     )
 
+    def __str__(self):
+        return f'№{self.pk} (id={self.pk})'
+
 
 class Recipient(models.Model):
+    class Meta:
+        verbose_name = 'получатель заказа'
+        verbose_name_plural = 'получатели заказа'
+    
     first_name = models.CharField(max_length=30, verbose_name='имя')
     last_name = models.CharField(max_length=30, verbose_name='фамилия')
     patronymic = models.CharField(max_length=30, verbose_name='отчество')
@@ -167,8 +175,14 @@ class Recipient(models.Model):
         Order,
         on_delete=models.CASCADE,
         primary_key=True,
-        related_name='recipient'
+        blank=True,
+        related_name='recipient',
+        verbose_name='заказ'
     )
+
+    def __str__(self):
+        return (f'{self.last_name} {self.first_name} {self.patronymic}'
+                f' (id={self.pk})')
 
 
 class Address(models.Model):
@@ -186,6 +200,7 @@ class Address(models.Model):
         Recipient,
         on_delete=models.CASCADE,
         primary_key=True,
+        blank=True,
         related_name='address',
         verbose_name='получатель заказа'
     )
@@ -368,7 +383,7 @@ class OrderPosition(models.Model):
     order = models.ForeignKey(
         Order,
         on_delete=models.CASCADE,
-        related_name='order_positions',
+        related_name='positions',
         verbose_name='заказ'
     )
     shop_position = models.ForeignKey(
