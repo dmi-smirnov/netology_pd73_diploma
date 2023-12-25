@@ -14,11 +14,14 @@ from jsonschema.exceptions import ValidationError as SchemaValidationError
 
 from api.serializers import (CartPositionSerializerForWrite,
                              CartPositionSerializerForRead,
-                             OrderSerializer,
-                             ParameterNameSerializer, ProductSerializer, RecipientSerializer,
-                             ShopSerializer, UserSerializer)
+                             OrderSerializer, RecipientSerializer,
+                             ParameterNameSerializer, ProductSerializer,
+                             ShopSerializerForRead, ShopSerializerForWrite,
+                             UserSerializer)
 from api.models import (CartPosition, Category, ConfirmationCode, Order,
-                        Product, ProductParameter, Recipient, Shop, ShopPosition, User)
+                        Product, ProductParameter, Recipient, Shop,
+                        ShopPosition, User)
+from api.permissions import IsShopRepresentative
 
 
 class CreateUserView(CreateAPIView):
@@ -252,6 +255,19 @@ class ProductsViewSet(viewsets.ReadOnlyModelViewSet):
                     self.filter_product_shop_positions(product_data)
                 )
             return products_data
+
+
+class UserShopsViewSet(viewsets.mixins.UpdateModelMixin,
+                       viewsets.mixins.ListModelMixin,
+                       viewsets.GenericViewSet):
+    queryset = Shop.objects.all()
+    serializer_class = ShopSerializerForWrite
+    permission_classes = [IsAuthenticated, IsShopRepresentative]
+
+    def get_queryset(self):
+        # Filtering queryset by user shops
+        return super().get_queryset()\
+            .filter(representatives=self.request.user)
 
 
 class UpdateShopPositionsView(APIView):
@@ -521,7 +537,8 @@ class UserCartViewSet(viewsets.mixins.CreateModelMixin,
                 .exclude(shop__open=False)
             product_shops_data = []
             for db_shop_pos in db_product_shops_positions:
-                product_shop_data = ShopSerializer(db_shop_pos.shop).data
+                product_shop_data =\
+                    ShopSerializerForRead(db_shop_pos.shop).data
                 product_shop_data['position'] = {
                     'id': db_shop_pos.pk,
                     'price': str(db_shop_pos.price),

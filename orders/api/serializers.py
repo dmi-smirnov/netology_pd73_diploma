@@ -56,10 +56,18 @@ class CategorySerializer(serializers.ModelSerializer):
         exclude = ['id']
 
 
-class ShopSerializer(serializers.ModelSerializer):
+class ShopSerializerForRead(serializers.ModelSerializer):
     class Meta:
         model = Shop
         exclude = ['representatives']
+        read_only_fields = ['id', 'name', 'open']
+
+
+class ShopSerializerForWrite(serializers.ModelSerializer):
+    class Meta:
+        model = Shop
+        exclude = ['representatives']
+        read_only_fields = ['id', 'name']
 
 
 class ShopPositionSerializerWithoutProduct(serializers.ModelSerializer):
@@ -67,7 +75,7 @@ class ShopPositionSerializerWithoutProduct(serializers.ModelSerializer):
         model = ShopPosition
         exclude = ['product']
 
-    shop = ShopSerializer()
+    shop = ShopSerializerForRead()
 
 
 class ProductSerializer(serializers.ModelSerializer):
@@ -94,7 +102,7 @@ class ShopPositionSerializer(serializers.ModelSerializer):
         model = ShopPosition
         exclude = ['archived_at']
 
-    shop = ShopSerializer()
+    shop = ShopSerializerForRead()
     product = ProductSerializer()
 
 
@@ -103,7 +111,7 @@ class ShopPositionSerializerForCartPosition(serializers.ModelSerializer):
         model = ShopPosition
         exclude = ['archived_at']
 
-    shop = ShopSerializer()
+    shop = ShopSerializerForRead()
     product = ProductSerializerForCartPosition()
 
 
