@@ -6,15 +6,15 @@ from api.views import (ProductsViewSet, UpdateShopPositionsView,
                        UpdateUserView, ForgotPasswordView, UserCartViewSet,
                        ForgotPasswordConfirmationCodeView,
                        CreateUserView, EmailVerification,
-                       UserOrdersViewSet, RecipientsViewSet)
+                       UserOrdersViewSet, UserRecipientsViewSet)
 
 
 router = DefaultRouter()
 
 router.register('products', ProductsViewSet)
-router.register('cart', UserCartViewSet)
-router.register('recipients', RecipientsViewSet)
-router.register('orders', UserOrdersViewSet)
+router.register('user/cart', UserCartViewSet)
+router.register('user/recipients', UserRecipientsViewSet)
+router.register('user/orders', UserOrdersViewSet)
 
 urlpatterns = [
     path('signup', CreateUserView.as_view()),

@@ -584,7 +584,7 @@ class UserOrdersViewSet(viewsets.mixins.CreateModelMixin,
         return response
 
 
-class RecipientsViewSet(viewsets.ReadOnlyModelViewSet):
+class UserRecipientsViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Recipient.objects.all()
     serializer_class = RecipientSerializer
     permission_classes = [IsAuthenticated]
