@@ -254,7 +254,7 @@ class ProductsViewSet(viewsets.ReadOnlyModelViewSet):
             return products_data
 
 
-class UpdateShopView(APIView):
+class UpdateShopPositionsView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):

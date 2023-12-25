@@ -2,8 +2,8 @@ from django.urls import include, path
 from rest_framework.authtoken.views import obtain_auth_token
 from rest_framework.routers import DefaultRouter
 
-from api.views import (ProductsViewSet, UpdateShopView, UpdateUserView,
-                       ForgotPasswordView, UserCartViewSet,
+from api.views import (ProductsViewSet, UpdateShopPositionsView,
+                       UpdateUserView, ForgotPasswordView, UserCartViewSet,
                        ForgotPasswordConfirmationCodeView,
                        CreateUserView, EmailVerification,
                        UserOrdersViewSet, RecipientsViewSet)
@@ -16,7 +16,6 @@ router.register('cart', UserCartViewSet)
 router.register('recipients', RecipientsViewSet)
 router.register('orders', UserOrdersViewSet)
 
-
 urlpatterns = [
     path('signup', CreateUserView.as_view()),
     path('verify_email', EmailVerification.as_view()),
@@ -25,6 +24,6 @@ urlpatterns = [
     path('forgot_password', ForgotPasswordView.as_view()),
     path('forgot_password/confirmation_code',
          ForgotPasswordConfirmationCodeView.as_view()),
-    path('shop/update', UpdateShopView.as_view()),
+    path('user/shops/update_positions', UpdateShopPositionsView.as_view()),
     path('', include(router.urls)),
 ]
