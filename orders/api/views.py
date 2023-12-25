@@ -15,10 +15,10 @@ from jsonschema.exceptions import ValidationError as SchemaValidationError
 from api.serializers import (CartPositionSerializerForWrite,
                              CartPositionSerializerForRead,
                              OrderSerializer,
-                             ParameterNameSerializer, ProductSerializer,
+                             ParameterNameSerializer, ProductSerializer, RecipientSerializer,
                              ShopSerializer, UserSerializer)
 from api.models import (CartPosition, Category, ConfirmationCode, Order,
-                        Product, ProductParameter, Shop, ShopPosition, User)
+                        Product, ProductParameter, Recipient, Shop, ShopPosition, User)
 
 
 class CreateUserView(CreateAPIView):
@@ -582,7 +582,33 @@ class UserOrdersViewSet(viewsets.mixins.CreateModelMixin,
             email_msg.send()
 
         return response
+
+
+class RecipientsViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = Recipient.objects.all()
+    serializer_class = RecipientSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        # Filtering queryset by request user orders
+        return super().get_queryset()\
+            .filter(order__user=self.request.user)
     
+    def list(self, request, *args, **kwargs):
+        default_data = super().list(request, *args, **kwargs).data
+
+        # Deleting duplicates
+        uniqs = set()
+        custom_data = []
+        for recipient in default_data:
+            recipient_str = str(recipient)
+            if recipient_str in uniqs:
+                continue
+            custom_data.append(recipient)
+            uniqs.add(recipient_str)
+
+        return Response(custom_data)
+
 
 def create_confirmation_code(user) -> ConfirmationCode:
     try:

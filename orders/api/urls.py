@@ -6,14 +6,16 @@ from api.views import (ProductsViewSet, UpdateShopView, UpdateUserView,
                        ForgotPasswordView, UserCartViewSet,
                        ForgotPasswordConfirmationCodeView,
                        CreateUserView, EmailVerification,
-                       UserOrdersViewSet)
+                       UserOrdersViewSet, RecipientsViewSet)
 
 
 router = DefaultRouter()
 
 router.register('products', ProductsViewSet)
 router.register('cart', UserCartViewSet)
+router.register('recipients', RecipientsViewSet)
 router.register('orders', UserOrdersViewSet)
+
 
 urlpatterns = [
     path('signup', CreateUserView.as_view()),

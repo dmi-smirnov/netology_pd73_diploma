@@ -179,12 +179,14 @@ class AddressSerializer(serializers.ModelSerializer):
     class Meta:
         model = Address
         fields = '__all__'
+        extra_kwargs = {'recipient': {'write_only': True}}
 
 
 class RecipientSerializer(serializers.ModelSerializer):
     class Meta:
         model = Recipient
         fields = '__all__'
+        extra_kwargs = {'order': {'write_only': True}}
 
     address = AddressSerializer()
 
