@@ -5,8 +5,8 @@ from rest_framework.routers import DefaultRouter
 from api.views import (ProductsViewSet, UpdateShopPositionsView,
                        UpdateUserView, ForgotPasswordView, UserCartViewSet,
                        ForgotPasswordConfirmationCodeView, UserShopsViewSet,
-                       CreateUserView, EmailVerification,
-                       UserOrdersViewSet, UserRecipientsViewSet)
+                       CreateUserView, EmailVerification, UserOrdersViewSet,
+                       UserRecipientsViewSet, UserShopsOrdersViewSet)
 
 
 router = DefaultRouter()
@@ -15,7 +15,9 @@ router.register('products', ProductsViewSet)
 router.register('user/cart', UserCartViewSet)
 router.register('user/recipients', UserRecipientsViewSet)
 router.register('user/orders', UserOrdersViewSet)
+router.register('user/shops/orders', UserShopsOrdersViewSet)
 router.register('user/shops', UserShopsViewSet)
+
 
 urlpatterns = [
     path('signup', CreateUserView.as_view()),

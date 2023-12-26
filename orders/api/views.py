@@ -2,8 +2,10 @@ from django import forms
 from django.core.mail import EmailMessage
 from django.db import IntegrityError
 from django.utils import timezone as django_timezone
+from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status, viewsets
 from rest_framework.exceptions import PermissionDenied, ValidationError
+from rest_framework.filters import SearchFilter
 from rest_framework.generics import CreateAPIView, UpdateAPIView
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -14,14 +16,13 @@ from jsonschema.exceptions import ValidationError as SchemaValidationError
 
 from api.serializers import (CartPositionSerializerForWrite,
                              CartPositionSerializerForRead,
-                             OrderSerializer, RecipientSerializer,
-                             ParameterNameSerializer, ProductSerializer,
-                             ShopSerializerForRead, ShopSerializerForWrite,
-                             UserSerializer)
+                             OrderSerializerForUser, OrderSerializerForShop,
+                             RecipientSerializer, ParameterNameSerializer,
+                             ProductSerializer, ShopSerializerForRead,
+                             ShopSerializerForWrite, UserSerializer)
 from api.models import (CartPosition, Category, ConfirmationCode, Order,
                         Product, ProductParameter, Recipient, Shop,
                         ShopPosition, User)
-from api.permissions import IsShopRepresentative
 
 
 class CreateUserView(CreateAPIView):
@@ -216,6 +217,10 @@ class ProductsViewSet(viewsets.ReadOnlyModelViewSet):
         .distinct()
     serializer_class = ProductSerializer
     permission_classes = [IsAuthenticated]
+    filter_backends = [DjangoFilterBackend, SearchFilter]
+    filterset_fields = ['name', 'model']
+    search_fields = ['name', 'description', 'model', 'category__name']
+
 
     def list(self, request, *args, **kwargs):
         default_data = super().list(request, *args, **kwargs).data
@@ -262,7 +267,7 @@ class UserShopsViewSet(viewsets.mixins.UpdateModelMixin,
                        viewsets.GenericViewSet):
     queryset = Shop.objects.all()
     serializer_class = ShopSerializerForWrite
-    permission_classes = [IsAuthenticated, IsShopRepresentative]
+    permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
         # Filtering queryset by user shops
@@ -567,8 +572,10 @@ class UserOrdersViewSet(viewsets.mixins.CreateModelMixin,
                         viewsets.mixins.ListModelMixin,
                         viewsets.GenericViewSet):
     queryset = Order.objects.all()
-    serializer_class = OrderSerializer
+    serializer_class = OrderSerializerForUser
     permission_classes = [IsAuthenticated]
+    filter_backends = [DjangoFilterBackend]
+    filterset_fields = ['status', 'created_at']
 
     def get_queryset(self):
         # Filtering queryset by request user
@@ -625,6 +632,55 @@ class UserRecipientsViewSet(viewsets.ReadOnlyModelViewSet):
             uniqs.add(recipient_str)
 
         return Response(custom_data)
+
+
+class UserShopsOrdersViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = Order.objects.all()
+    serializer_class = OrderSerializerForShop
+    permission_classes = [IsAuthenticated]
+    filter_backends = [DjangoFilterBackend]
+    filterset_fields = ['status', 'created_at']
+
+    def get_queryset(self):
+        # Filtering queryset by request user shops positions
+        return super().get_queryset()\
+            .filter(positions__shop_position__shop__representatives=\
+                    self.request.user)\
+            .distinct()
+    
+    def list(self, request, *args, **kwargs):
+        default_data = super().list(request, *args, **kwargs).data
+        custom_data =\
+            self.filter_positions_by_user_shops(default_data, many=True)
+        return Response(custom_data)
+
+    def retrieve(self, request, *args, **kwargs):
+        default_data = super().retrieve(request, *args, **kwargs).data
+        custom_data =\
+            self.filter_positions_by_user_shops(default_data)
+        return Response(custom_data)
+
+    def filter_positions_by_user_shops(self, data, many: bool = False):
+        user_shops_ids_tuples = Shop.objects\
+            .filter(representatives=self.request.user).values_list('id')
+        user_shops_ids = set(t[0] for t in user_shops_ids_tuples)
+
+        if not many:
+            order_data = data.copy()
+            order_positions_data = order_data.pop('positions')
+            order_data['positions'] = []
+            for order_pos in order_positions_data:
+                shop_id = order_pos['shop_position']['shop']['id']
+                if shop_id in user_shops_ids:
+                    order_data['positions'].append(order_pos)
+            return order_data
+        else:
+            orders_data = []
+            for order_data in data:
+                orders_data.append(
+                    self.filter_positions_by_user_shops(order_data)
+                )
+            return orders_data
 
 
 def create_confirmation_code(user) -> ConfirmationCode:

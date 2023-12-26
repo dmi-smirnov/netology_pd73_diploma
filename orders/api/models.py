@@ -142,7 +142,8 @@ class Order(models.Model):
 
     created_at = models.DateTimeField(auto_now_add=True,
                                       verbose_name='создан')
-    delivired_at = models.DateTimeField(verbose_name='доставлен', null=True)
+    delivired_at = models.DateTimeField(verbose_name='доставлен', null=True,
+                                        blank=True)
     status = models.CharField(
         max_length=20,
         choices=StatusChoices.choices,

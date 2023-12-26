@@ -199,7 +199,7 @@ class RecipientSerializer(serializers.ModelSerializer):
     address = AddressSerializer()
 
 
-class OrderSerializer(serializers.ModelSerializer):
+class OrderSerializerForUser(serializers.ModelSerializer):
     class Meta:
         model = Order
         fields = '__all__'
@@ -404,6 +404,33 @@ class OrderSerializer(serializers.ModelSerializer):
         custom_data['total_quantity'] = order_total_quantity
         # Adding order total sum
         custom_data['total_sum'] = str(order_total_sum)
+
+        return custom_data
+    
+
+class OrderSerializerForShop(serializers.ModelSerializer):
+    class Meta:
+        model = Order
+        fields = '__all__'
+        extra_kwargs = {'user': {'write_only': True}}
+    
+    positions = OrderPositionSerializer(many=True, read_only=True)
+    recipient = RecipientSerializer()
+
+    def to_representation(self, instance):
+        default_data = super().to_representation(instance)
+
+        # Adding additional data
+        custom_data = default_data.copy()
+        for order_pos in custom_data['positions']:
+            order_pos_quantity = order_pos['quantity']
+            shop_position = order_pos['shop_position']
+            shop_position_price = float(shop_position['price'])
+            order_pos_sum =\
+                shop_position_price * order_pos_quantity
+            
+            # Adding order position sum
+            order_pos['sum'] = order_pos_sum
 
         return custom_data
     
