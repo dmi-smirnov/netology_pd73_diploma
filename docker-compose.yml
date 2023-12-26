@@ -1,0 +1,56 @@
+volumes:
+  pgdata:
+  static_files:
+
+networks:
+  net:
+
+services:
+  dbms:
+    image: postgres
+    volumes:
+      - pgdata:/var/lib/postgresql/data:rw
+    networks:
+      - net
+    environment:
+      - POSTGRES_USER=${DB_USER}
+      - POSTGRES_PASSWORD=${DB_PWD}
+      - POSTGRES_DB=${DB_NAME}
+
+  gunicorn_django:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - static_files:/usr/src/app/static:rw
+    networks:
+      - net
+    environment:
+      - SECRET_KEY=${SECRET_KEY}
+      - DEBUG=${DEBUG}
+      - DB_ENGINE=${DB_ENGINE}
+      - DB_HOST=dbms
+      - DB_PORT=${DB_PORT}
+      - DB_USER=${DB_USER}
+      - DB_PWD=${DB_PWD}
+      - DB_NAME=${DB_NAME}
+      - EMAIL_HOST=${EMAIL_HOST}
+      - EMAIL_PORT=${EMAIL_PORT}
+      - EMAIL_USE_SSL=${EMAIL_USE_SSL}
+      - EMAIL_HOST_USER=${EMAIL_HOST_USER}
+      - EMAIL_HOST_PASSWORD=${EMAIL_HOST_PASSWORD}
+      - DEFAULT_FROM_EMAIL=${DEFAULT_FROM_EMAIL}
+    depends_on:
+      - dbms
+
+  nginx:
+    image: nginx
+    volumes:
+      - ./nginx_templates:/etc/nginx/templates:ro
+      - static_files:/var/www/static:r
+    networks:
+      - net
+    ports:
+      - ${HTTP_SRV_ADDR_PORT}:80
+    depends_on:
+      - gunicorn_django

@@ -134,8 +134,10 @@ class CartPositionSerializerForWrite(serializers.ModelSerializer):
 
         # Checking quantity
         if 'quantity' in self.validated_data:
-            db_shop_pos = (self.instance or
-                           self.validated_data.get('shop_position'))
+            if self.instance:
+                db_shop_pos = self.instance.shop_position
+            else:
+                db_shop_pos = self.validated_data.get('shop_position')
             shop_pos_qnt = db_shop_pos.quantity
             cart_pos_qnt = self.validated_data['quantity']
             if cart_pos_qnt > shop_pos_qnt:
